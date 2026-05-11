@@ -3,15 +3,15 @@
 #include <string.h>
 #include <time.h>
 
+//Performans testi için sabitler ve global değişkenler
 #define HASH_SIZE 10007
 #define MAX_MUTFAK_KAPASITESI 100
-#define DURAK_SAYISI 5
+#define DURAK_SAYISI 5 //Restoran ve 4 mahalle arasındaki ağ için
 
-int global_fis_id = 1000;
+int global_fis_id = 1000; //Her hesap kapatıldıpında artacak fiş numarası
 
-// ==========================================
+
 // 1. VERİ KATMANI VE HASH TABLE (ÜRÜNLER İÇİN)
-// ==========================================
 typedef struct Urun {
     int id;
     char isim[50];
@@ -31,7 +31,7 @@ void urun_ekle(int id, const char *isim, float fiyat, int stok) {
     strcpy(yeni_urun->isim, isim);
     yeni_urun->fiyat = fiyat;
     yeni_urun->stok = stok;
-    yeni_urun->next = urun_tablosu[index];
+    yeni_urun->next = urun_tablosu[index]; //Yeni ürünü listenin başına ekliyoruz.
     urun_tablosu[index] = yeni_urun;
 }
 
@@ -45,13 +45,11 @@ Urun *urun_bul(int id) {
     return NULL;
 }
 
-// ==========================================
 // 2. AĞAÇ YAPISI (MENÜ HİYERARŞİSİ İÇİN)
-// ==========================================
 typedef struct MenuNode {
     char isim[100];
-    struct MenuNode *first_child;
-    struct MenuNode *next_sibling;
+    struct MenuNode *first_child; //ilk alt kategori
+    struct MenuNode *next_sibling; //aynı kategorideki diğer kategori
 } MenuNode;
 
 MenuNode *dugum_olustur(const char *isim) {
@@ -71,6 +69,7 @@ void alt_dugum_ekle(MenuNode *ebeveyn, MenuNode *cocuk) {
     }
 }
 
+// Menüyü girintili bir şekilde yazdırıyoruz.
 void menuyu_yazdir(MenuNode *root, int derinlik) {
     if (root == NULL) return;
     for (int i = 0; i < derinlik; i++) printf("   ");
@@ -80,9 +79,8 @@ void menuyu_yazdir(MenuNode *root, int derinlik) {
     menuyu_yazdir(root->next_sibling, derinlik);
 }
 
-// ==========================================
 // 3. BAĞLI LİSTE (MASA SİPARİŞLERİ İÇİN)
-// ==========================================
+// Masalardaki sipariş sayıs belirsiz olduğu için Linked List kullandık.
 typedef struct SiparisKalemi {
     int urun_id;
     int adet;
@@ -130,9 +128,8 @@ void masa_siparisi_yazdir(int masa_no, SiparisKalemi *head) {
     printf("--------------------------------\nToplam Tutar: %.2f TL\n\n", toplam_tutar);
 }
 
-// ==========================================
 // 4. YIĞIN / STACK (GERİ AL - UNDO SİSTEMİ İÇİN)
-// ==========================================
+// LIFO mantığı ile yapılan hatalı sipariş girişlerini geri alabilmek için Stack kullandık.
 typedef struct IslemGecmisi {
     int masa_no;
     int urun_id;
@@ -147,7 +144,7 @@ void islem_gecmisine_ekle(int masa_no, int urun_id, int adet) {
     yeni_islem->masa_no = masa_no;
     yeni_islem->urun_id = urun_id;
     yeni_islem->adet = adet;
-    yeni_islem->next = stack_top;
+    yeni_islem->next = stack_top; // Push işlemi
     stack_top = yeni_islem;
 }
 
@@ -157,7 +154,7 @@ void son_islemi_geri_al(SiparisKalemi **aktif_masalar) {
         return;
     }
 
-    IslemGecmisi *son_islem = stack_top;
+    IslemGecmisi *son_islem = stack_top; // Pop işlemi başlangıcı
     stack_top = stack_top->next;
 
     SiparisKalemi **head = &aktif_masalar[son_islem->masa_no];
@@ -170,7 +167,7 @@ void son_islemi_geri_al(SiparisKalemi **aktif_masalar) {
             if (temp->adet <= 0) {
                 if (prev == NULL) *head = temp->next;
                 else prev->next = temp->next;
-                free(temp);
+                free(temp); //Belleği serbest bırak.
             }
             break;
         }
@@ -185,9 +182,8 @@ void son_islemi_geri_al(SiparisKalemi **aktif_masalar) {
     free(son_islem);
 }
 
-// ==========================================
+
 // 5. ÖNCELİKLİ KUYRUK (MUTFAK İŞ AKIŞI - MAX HEAP)
-// ==========================================
 typedef struct {
     int masa_no;
     char siparis_detayi[100];
@@ -210,6 +206,7 @@ void mutfaga_ilet(int masa_no, const char *detay, int oncelik) {
     strcpy(mutfak_kuyrugu[i].siparis_detayi, detay);
     mutfak_kuyrugu[i].oncelik = oncelik;
 
+    // Heapify Up: Öncelikli elemanı yukarı taşıyoruz.
     while (i != 0 && mutfak_kuyrugu[(i - 1) / 2].oncelik < mutfak_kuyrugu[i].oncelik) {
         swap(&mutfak_kuyrugu[i], &mutfak_kuyrugu[(i - 1) / 2]);
         i = (i - 1) / 2;
@@ -225,6 +222,7 @@ void mutfaktan_siparisi_cikar() {
     MutfakSiparisi hazirlanan = mutfak_kuyrugu[0];
     mutfak_kuyrugu[0] = mutfak_kuyrugu[--kuyruk_boyutu];
 
+    // Heapify Down: Kök değişince Heap özelliğini tekrar sağlıyoruz.
     int i = 0;
     while (1) {
         int sol = 2 * i + 1, sag = 2 * i + 2, en_buyuk = i;
@@ -241,9 +239,7 @@ void mutfaktan_siparisi_cikar() {
            hazirlanan.siparis_detayi);
 }
 
-// ==========================================
 // 6. İKİLİ ARAMA AĞACI (GEÇMİŞ FİŞ ARŞİVİ - BST)
-// ==========================================
 typedef struct FisNode {
     int fis_id;
     int masa_no;
@@ -271,7 +267,7 @@ FisNode *fis_ara(FisNode *root, int fis_id) {
     return fis_ara(root->right, fis_id);
 }
 
-// ARSIV DOSYASINA KAYDETME (YENİ)
+// ARSIV DOSYASINA KAYDETME
 void dosyaya_fis_kaydet(int fis_id, int masa_no, float tutar) {
     FILE *dosya = fopen("arsiv.txt", "a"); // 'a' modu: dosyanın sonuna ekler
     if (dosya != NULL) {
@@ -280,6 +276,7 @@ void dosyaya_fis_kaydet(int fis_id, int masa_no, float tutar) {
     }
 }
 
+// Masayı kapatırken bellekteki sipariş listesini temizleyip fiş kesiyoruz.
 FisNode *masayi_kapat_ve_fis_kes(int masa_no, SiparisKalemi **head, FisNode *arsiv_root) {
     if (*head == NULL) {
         printf(">> Masa %d zaten bos. Kapatilacak bir hesap yok!\n", masa_no);
@@ -302,7 +299,7 @@ FisNode *masayi_kapat_ve_fis_kes(int masa_no, SiparisKalemi **head, FisNode *ars
     int yeni_fis_id = global_fis_id++;
     arsiv_root = fis_ekle(arsiv_root, yeni_fis_id, masa_no, toplam);
 
-    // DOSYAYA YAZMA EKLEMESI
+    // DOSYAYA YAZMA
     dosyaya_fis_kaydet(yeni_fis_id, masa_no, toplam);
 
     printf("\n=================================\n");
@@ -314,7 +311,7 @@ FisNode *masayi_kapat_ve_fis_kes(int masa_no, SiparisKalemi **head, FisNode *ars
     return arsiv_root;
 }
 
-// ARSIV DOSYASINDAN OKUMA (YENİ)
+// ARSIV DOSYASINDAN OKUMA
 FisNode *dosyadan_arsiv_yukle(FisNode *root) {
     FILE *dosya = fopen("arsiv.txt", "r");
     if (dosya == NULL) return root;
@@ -330,54 +327,85 @@ FisNode *dosyadan_arsiv_yukle(FisNode *root) {
     return root;
 }
 
-// ==========================================
-// 7. PERFORMANS TESTİ (ARRAY VS HASH TABLE)
-// ==========================================
+// 7. PERFORMANS TESTİ (ARRAY VS HASH TABLE - Kapsamlı Analiz)
 void performans_testi() {
-    printf("\n============================================\n");
-    printf("   PERFORMANS TESTI (10.000 Kayit)\n");
-    printf("============================================\n");
+    printf("\n===============================================================================\n");
+    printf("   PERFORMANS TESTI: ARAMA VE EKLEME MALIYETLERI (Array vs Hash Table) \n");
+    printf("===============================================================================\n");
 
-    int test_boyutu = 10000;
-    int *dizi = (int *) malloc(test_boyutu * sizeof(int));
+    // Yönergeye uygun olarak küçük, orta ve büyük veri setleri
+    int veri_setleri[] = {1000, 10000, 100000};
+    int test_tekrari = 1000; // Süreyi daha net ölçebilmek için arama döngü sayısı
 
-    for (int i = 0; i < test_boyutu; i++) {
-        int id = 5000 + i;
-        dizi[i] = id;
-        urun_ekle(id, "Test Urunu", 10.0, 5);
-    }
+    // Sonuçların tablo olarak gösterilmesi
+    printf("%-15s | %-25s | %-25s\n", "Veri Boyutu", "Dizi (Array) Suresi", "Hash Table Suresi");
+    printf("-------------------------------------------------------------------------------\n");
 
-    int aranan_id = 5000 + test_boyutu - 1;
-    int test_tekrari = 10000;
+    for (int v = 0; v < 3; v++) {
+        int test_boyutu = veri_setleri[v];
+        int *dizi = (int *) malloc(test_boyutu * sizeof(int));
 
-    clock_t basla_dizi = clock();
-    for (int t = 0; t < test_tekrari; t++) {
+        // --- 1. EKLEME (INSERTION) TESTİ ---
+        clock_t basla_ekle_dizi = clock();
         for (int i = 0; i < test_boyutu; i++) {
-            if (dizi[i] == aranan_id) break;
+            dizi[i] = 5000 + i; // Diziye indeks ile ekleme O(1)
         }
+        clock_t bitis_ekle_dizi = clock();
+        double sure_ekle_dizi = ((double) (bitis_ekle_dizi - basla_ekle_dizi)) / CLOCKS_PER_SEC;
+
+        clock_t basla_ekle_hash = clock();
+        for (int i = 0; i < test_boyutu; i++) {
+            urun_ekle(5000 + i, "Test Urunu", 10.0, 5); // Hash hesaplama ve malloc maliyeti var
+        }
+        clock_t bitis_ekle_hash = clock();
+        double sure_ekle_hash = ((double) (bitis_ekle_hash - basla_ekle_hash)) / CLOCKS_PER_SEC;
+
+
+        // --- 2. ARAMA (SEARCH) TESTİ (Worst Case - En son eleman aranıyor) ---
+        int aranan_id = 5000 + test_boyutu - 1;
+
+        clock_t basla_ara_dizi = clock();
+        for (int t = 0; t < test_tekrari; t++) {
+            for (int i = 0; i < test_boyutu; i++) {
+                if (dizi[i] == aranan_id) break; // Linear Search O(n)
+            }
+        }
+        clock_t bitis_ara_dizi = clock();
+        double sure_ara_dizi = ((double) (bitis_ara_dizi - basla_ara_dizi)) / CLOCKS_PER_SEC;
+
+        clock_t basla_ara_hash = clock();
+        for (int t = 0; t < test_tekrari; t++) {
+            urun_bul(aranan_id); // Hash Table Search O(1)
+        }
+        clock_t bitis_ara_hash = clock();
+        double sure_ara_hash = ((double) (bitis_ara_hash - basla_ara_hash)) / CLOCKS_PER_SEC;
+
+        // Tablo formatında yazdırma
+        printf("%-15d | Ekleme: %-15.6f sn | Ekleme: %-15.6f sn\n", test_boyutu, sure_ekle_dizi, sure_ekle_hash);
+        printf("%-15s | Arama:  %-15.6f sn | Arama:  %-15.6f sn\n", "", sure_ara_dizi, sure_ara_hash);
+        printf("-------------------------------------------------------------------------------\n");
+
+        free(dizi); // Bellek sızıntısını önlemek için
     }
-    clock_t bitis_dizi = clock();
-    double sure_dizi = ((double) (bitis_dizi - basla_dizi)) / CLOCKS_PER_SEC;
 
-    clock_t basla_hash = clock();
-    for (int t = 0; t < test_tekrari; t++) {
-        urun_bul(aranan_id);
-    }
-    clock_t bitis_hash = clock();
-    double sure_hash = ((double) (bitis_hash - basla_hash)) / CLOCKS_PER_SEC;
+    // Yönergedeki "Sonuçların veri yapısı seçimi ile ilişkisinin açıklanması" maddesi için rapor
+    printf("\n>>> PERFORMANS ANALIZI VE VERI YAPISI DEGERLENDIRMESI <<<\n");
+    printf("- Arama Islemi: Dizi uzerinde dogrusal arama (Linear Search) yapildigi icin\n");
+    printf("  veri boyutu arttikca sure O(n) karmasikligiyla dogrusal olarak artmistir.\n");
+    printf("  Hash Table ise arama isleminde O(1) maliyetiyle boyut artisindan etkilenmemistir.\n\n");
 
-    printf("Aranan Urun ID: %d (En Kotu Senaryo)\n", aranan_id);
-    printf("Linear Search (Dizi - O(n)) Suresi : %f saniye\n", sure_dizi);
-    printf("Hash Table (O(1)) Suresi         : %f saniye\n", sure_hash);
-    printf("Sonuc: Hash Table, diziye gore daha hizlidir!\n");
-    printf("============================================\n");
+    printf("- Ekleme Islemi: Diziye (Array) indeks uzerinden dogrudan atama yapmak O(1) hizindadir.\n");
+    printf("  Hash Table'da ise her urun icin Hashing fonksiyonu calistirma ve Bagli Listeye\n");
+    printf("  (Linked List) yeni dugum (malloc) ekleme maliyeti nedeniyle ekleme suresi daha uzundur.\n\n");
 
-    free(dizi);
+    printf("SONUC: Sistemde urunlerin menuye eklenmesi gunde birkac kez yapilirken, siparis\n");
+    printf("alimi sirasinda 'arama' islemi binlerce kez yapilmaktadir. Bu yuzden ekleme\n");
+    printf("maliyetinden feragat edilerek, arama hizini maksimize eden Hash Table tercih edilmistir.\n");
+    printf("===============================================================================\n");
 }
 
-// ==========================================
 // 8. STANDART KUYRUK (MÜŞTERİ BEKLEME SIRASI - FIFO)
-// ==========================================
+// İlk gelen masaya ilk oturur.
 typedef struct BeklemeNode {
     char musteri_ismi[50];
     struct BeklemeNode *next;
@@ -417,9 +445,7 @@ void siradan_musteri_cikar(BeklemeKuyrugu *q) {
     free(temp);
 }
 
-// ==========================================
 // 9. GRAPH (TESLİMAT ROTASI - ADJACENCY MATRIX)
-// ==========================================
 // 0: Restoran, 1-4: Teslimat Noktalari (Mahalleler)
 int teslimat_matrisi[DURAK_SAYISI][DURAK_SAYISI] = {
     {0, 5, 10, 0, 0},   // 0: Restoran
@@ -451,9 +477,7 @@ void teslimat_rotasi_sorgula(int hedef) {
     }
 }
 
-// ==========================================
 // BAŞLANGIÇ VERİLERİNİ YÜKLEME
-// ==========================================
 MenuNode *sistemi_baslat() {
     for (int i = 0; i < HASH_SIZE; i++) urun_tablosu[i] = NULL;
 
@@ -499,19 +523,17 @@ MenuNode *sistemi_baslat() {
     return ana_menu;
 }
 
-// ==========================================
 // ANA FONKSİYON VE KULLANICI ARAYÜZÜ
-// ==========================================
 int main() {
     MenuNode *menu = sistemi_baslat();
     SiparisKalemi *aktif_masalar[21] = {NULL}; // 20 masa için
     FisNode *root_arsiv = NULL;
 
-    // DOSYADAN ARSIVI YUKLE (YENİ)
+    // DOSYADAN ARSIVI YUKLE
     root_arsiv = dosyadan_arsiv_yukle(root_arsiv);
     if(root_arsiv != NULL) printf(">> Eski fisler basariyla yuklendi.\n");
 
-    // Kuyruğu döngünün DIŞINDA tanımla ve başlat:
+    // Verilerin silinmemesi için kuyruğu döngünün dışında tanımla ve başlat:
     BeklemeKuyrugu kapi_sirasi;
     kuyruk_baslat(&kapi_sirasi);
 
